@@ -12,6 +12,9 @@ stages:
     jobs:
       - job: lint
         steps:
+          - script: docker build -f .docker/python-base.Dockerfile -t briacleguillou/python-base:latest .
+            displayName: Build python-base
+
           - script: docker compose --profile dev build python-dev
             displayName: Build python-dev
 
