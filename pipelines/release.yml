@@ -1,0 +1,75 @@
+trigger: none
+
+parameters:
+  - name: environment
+    displayName: Environment
+    type: string
+    default: dev
+    values:
+      - dev
+      - prod
+
+pool:
+  name: local
+
+stages:
+  - stage: Infra
+    displayName: Terraform
+    jobs:
+      - job: terraform
+        steps:
+          - script: terraform init -reconfigure
+            displayName: terraform init
+            workingDirectory: terraform
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
+
+          - script: terraform apply -auto-approve -var-file=environments/${{ parameters.environment }}.tfvars
+            displayName: terraform apply
+            workingDirectory: terraform
+            env:
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
+
+  - stage: Deploy
+    displayName: Helm deploy
+    dependsOn: Infra
+    jobs:
+      - job: helm
+        steps:
+          - script: az aks get-credentials --resource-group mlops-${{ parameters.environment }} --name mlops-aks-${{ parameters.environment }} --overwrite-existing
+            displayName: AKS credentials
+            env:
+              AZURE_CLIENT_ID: $(ARM_CLIENT_ID)
+              AZURE_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              AZURE_TENANT_ID: $(ARM_TENANT_ID)
+
+          - script: |
+              helm upgrade --install mlops-stack helm/mlops-stack \
+                --namespace mlops \
+                --create-namespace \
+                --values helm/mlops-stack/values.yaml \
+                --values helm/mlops-stack/values-${{ parameters.environment }}.yaml \
+                --wait --timeout 5m
+            displayName: helm upgrade
+
+  - stage: Smoke
+    displayName: Smoke test
+    dependsOn: Deploy
+    jobs:
+      - job: smoke
+        steps:
+          - script: |
+              WORKER_URL=$(kubectl get svc orchestrator -n mlops -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://$WORKER_URL:8080/api/demo/start)
+              if [ "$STATUS" != "202" ]; then
+                echo "Smoke test failed: expected 202, got $STATUS"
+                exit 1
+              fi
+              echo "Smoke test passed"
+            displayName: POST /api/demo/start

@@ -1,0 +1,30 @@
+orchestrator:
+  image: briacleguillou/orchestrator:latest
+  replicas: 1
+  port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+worker:
+  image: briacleguillou/worker:latest
+  replicas: 1
+  port: 8000
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+openMeteoBaseUrl: https://api.open-meteo.com
+blobContainer: mlops
+
+secretProviderClass:
+  tenantId: ""
+  keyvaultName: ""

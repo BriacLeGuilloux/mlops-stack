@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trainer-job-template
+  namespace: mlops
+data:
+  job.yaml: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: trainer-job
+      namespace: mlops
+    spec:
+      template:
+        spec:
+          nodeSelector:
+            pool: training
+          restartPolicy: Never
+          containers:
+            - name: trainer
+              image: {{ .Values.trainer.image | default "briacleguillou/trainer:latest" }}
+              envFrom:
+                - secretRef:
+                    name: mlops-secrets
+                - configMapRef:
+                    name: mlops-config

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mlops-stack
+description: MLOps stack — Brussels temperature forecast
+type: application
+version: 0.1.0
+appVersion: "latest"
