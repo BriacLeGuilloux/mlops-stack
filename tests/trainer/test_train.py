@@ -3,31 +3,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import torch
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "python" / "trainer"))
 
-from model import LSTMModel
 from train import WINDOW_IN, WINDOW_OUT, _next_version, create_windows
-
-
-class TestLSTMModel:
-    def test_output_shape(self) -> None:
-        model = LSTMModel()
-        x = torch.randn(4, WINDOW_IN, 1)
-        out = model(x)
-        assert out.shape == (4, WINDOW_OUT)
-
-    def test_default_hyperparams(self) -> None:
-        model = LSTMModel()
-        assert model.fc.out_features == 14
-        assert model.fc.in_features == 64
-
-    def test_single_sample(self) -> None:
-        model = LSTMModel()
-        x = torch.randn(1, WINDOW_IN, 1)
-        out = model(x)
-        assert out.shape == (1, 14)
 
 
 class TestCreateWindows:
@@ -65,8 +44,8 @@ class TestNextVersion:
     def test_increments_version(self, mocker) -> None:
         client = mocker.MagicMock()
         blob1 = mocker.MagicMock()
-        blob1.name = "models/lstm_v3.pt"
+        blob1.name = "models/xgb_v3.pkl"
         blob2 = mocker.MagicMock()
-        blob2.name = "models/lstm_v1.pt"
+        blob2.name = "models/xgb_v1.pkl"
         client.list_blobs.return_value = [blob1, blob2]
         assert _next_version(client) == 4

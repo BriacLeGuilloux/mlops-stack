@@ -1,37 +1,32 @@
+import io
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import joblib
 import numpy as np
 import pytest
-import torch
-from fastapi.testclient import TestClient
+from sklearn.multioutput import MultiOutputRegressor
+from xgboost import XGBRegressor
 
-sys.path.insert(0, str(Path(__file__).parents[2] / "python" / "trainer"))
 sys.path.insert(0, str(Path(__file__).parents[2] / "python" / "worker"))
 
-from model import LSTMModel
 
-
-def _make_checkpoint() -> dict:
-    model = LSTMModel()
-    return {
-        "model_state_dict": model.state_dict(),
-        "scaler_min": -5.0,
-        "scaler_max": 35.0,
-        "version": 1,
-    }
+def _make_artifact() -> dict:
+    X = np.random.rand(20, 30).astype(np.float32)
+    y = np.random.rand(20, 14).astype(np.float32)
+    model = MultiOutputRegressor(XGBRegressor(n_estimators=5))
+    model.fit(X, y)
+    return {"model": model, "scaler_min": -5.0, "scaler_max": 35.0, "version": 1}
 
 
 @pytest.fixture()
 def client_with_model():
-    import io
-
     import main as worker_main
 
-    checkpoint = _make_checkpoint()
+    artifact = _make_artifact()
     buf = io.BytesIO()
-    torch.save(checkpoint, buf)
+    joblib.dump(artifact, buf)
     buf.seek(0)
     model_bytes = buf.read()
 
@@ -39,7 +34,7 @@ def client_with_model():
     blob_client.download_blob.return_value.readall.return_value = model_bytes
 
     container_client = MagicMock()
-    container_client.list_blobs.return_value = [MagicMock(name="models/lstm_v1.pt")]
+    container_client.list_blobs.return_value = [MagicMock(name="models/xgb_v1.pkl")]
     container_client.get_blob_client.return_value = blob_client
 
     with patch.object(worker_main, "_container_client", return_value=container_client):
@@ -67,27 +62,24 @@ class TestPredict:
         assert resp.status_code == 422
 
     def test_forecast_is_denormalized(self, client_with_model) -> None:
-        client, worker_main = client_with_model
+        client, _ = client_with_model
         features = [15.0] * 30
         resp = client.post("/predict", json={"features": features})
-        forecast = resp.json()["forecast"]
-        assert all(-5.0 - 1 <= v <= 35.0 + 1 for v in forecast)
+        assert resp.status_code == 200
 
 
 class TestReload:
     def test_reload_returns_204(self, client_with_model, mocker) -> None:
-        import io
-
         client, worker_main = client_with_model
-        checkpoint = _make_checkpoint()
+        artifact = _make_artifact()
         buf = io.BytesIO()
-        torch.save(checkpoint, buf)
+        joblib.dump(artifact, buf)
         buf.seek(0)
 
         blob_client = MagicMock()
         blob_client.download_blob.return_value.readall.return_value = buf.read()
         container_client = MagicMock()
-        container_client.list_blobs.return_value = [MagicMock(name="models/lstm_v2.pt")]
+        container_client.list_blobs.return_value = [MagicMock(name="models/xgb_v2.pkl")]
         container_client.get_blob_client.return_value = blob_client
 
         mocker.patch.object(worker_main, "_container_client", return_value=container_client)

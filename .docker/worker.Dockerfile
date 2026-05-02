@@ -1,6 +1,5 @@
 FROM briacleguillou/python-base:latest
 
-COPY python/trainer/model.py /app/trainer/model.py
 COPY python/worker/requirements.txt /app/worker/requirements.txt
 RUN pip install --no-cache-dir -r /app/worker/requirements.txt
 
