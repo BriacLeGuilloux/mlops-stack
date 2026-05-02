@@ -9,7 +9,7 @@ public interface IK8sJobService
     Task<string> GetJobStatusAsync(string jobId);
 }
 
-public class K8sJobService(IKubernetes kubernetes, IConfiguration config) : IK8sJobService
+public class K8sJobService(IKubernetes kubernetes) : IK8sJobService
 {
     private const string Namespace = "mlops";
     private const string TrainerImage = "briacleguillou/trainer:latest";
