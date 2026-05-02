@@ -39,23 +39,24 @@ Toutes les étapes s'exécutent sur ton PC (pool `local`), pas sur les serveurs 
 ### ruff
 
 ```bash
+docker build -f .docker/python-base.Dockerfile -t briacleguillou/python-base:latest .
 docker compose --profile dev build python-dev
-docker compose --profile dev run --rm python-dev -m ruff check python/
+docker compose --profile dev run --rm --entrypoint ruff python-dev check python/
 ```
 
-- Construit l'image `python-dev` si elle n'existe pas
-- Lance `ruff` sur tout le dossier `python/`
+- `python-base` est buildé localement en premier — l'agent self-hosted n'a pas accès à la version Docker Hub qui peut être obsolète
+- L'option `--entrypoint ruff` est obligatoire car l'entrypoint par défaut de `python-dev` est `pytest`
 - `ruff` vérifie : imports inutilisés, variables non utilisées, mauvaises pratiques, etc.
 - Si une erreur est trouvée → le pipeline s'arrête
 
 ### black
 
 ```bash
-docker compose --profile dev run --rm python-dev -m black --check python/
+docker compose --profile dev run --rm --entrypoint python python-dev -m black --check python/
 ```
 
-- `black` vérifie le **formatage** du code (indentation, longueur des lignes, guillemets, etc.)
 - `--check` ne modifie rien — il retourne une erreur si le code n'est pas formaté correctement
+- `--entrypoint python` requis pour la même raison que ruff ci-dessus
 
 ---
 
@@ -72,18 +73,24 @@ docker compose --profile dev run --rm python-dev tests/trainer tests/worker -v
 ```
 
 Lance `pytest` dans le conteneur `python-dev` sur :
-- `tests/trainer/` → teste le modèle LSTM et les fonctions d'entraînement
+
+- `tests/trainer/` → teste le modèle XGBoost et les fonctions d'entraînement
 - `tests/worker/` → teste les endpoints FastAPI (`/predict`, `/reload`)
 
 ### .NET tests
 
 ```bash
+docker compose --profile dev build dotnet-dev
 docker compose --profile dev run --rm dotnet-dev
 ```
 
-Lance `dotnet test` sur `orchestrator/orchestrator.sln` dans le conteneur .NET SDK :
+- L'image `dotnet-dev` est buildée depuis `.docker/dotnet-dev.Dockerfile` (SDK 8.0 + user `appuser` uid 1000)
+- L'utilisateur non-root est requis pour que `git clean` puisse supprimer les artifacts lors des runs suivants
+- Lance `dotnet test` sur `orchestrator/orchestrator.sln`
 - `DemoControllerTests` → teste `POST /api/demo/start`
 - `StatusControllerTests` → teste `GET /api/status/{jobId}`
+
+> **Note :** des warnings `failed to remove ... Toegang geweigerd` peuvent apparaître à l'étape Checkout si des artifacts `.NET bin/obj` hérités sont owned par root. Ils sont inoffensifs — le checkout continue normalement.
 
 ---
 
