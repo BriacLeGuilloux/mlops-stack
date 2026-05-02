@@ -1,0 +1,71 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  name: local
+
+stages:
+  - stage: Lint
+    displayName: Lint Python
+    jobs:
+      - job: lint
+        steps:
+          - script: |
+              docker compose --profile dev build python-dev
+              docker compose --profile dev run --rm python-dev \
+                -m ruff check python/
+            displayName: ruff
+
+          - script: |
+              docker compose --profile dev run --rm python-dev \
+                -m black --check python/
+            displayName: black
+
+  - stage: Test
+    displayName: Tests
+    dependsOn: Lint
+    jobs:
+      - job: python_tests
+        displayName: Python tests
+        steps:
+          - script: |
+              docker compose --profile dev run --rm python-dev \
+                tests/trainer tests/worker -v
+            displayName: pytest
+
+      - job: dotnet_tests
+        displayName: .NET tests
+        steps:
+          - script: docker compose --profile dev run --rm dotnet-dev
+            displayName: dotnet test
+
+  - stage: Build
+    displayName: Build & Push
+    dependsOn: Test
+    jobs:
+      - job: docker_build
+        displayName: Docker build and push
+        steps:
+          - script: echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)" --password-stdin
+            displayName: Docker login
+
+          - script: docker build -f .docker/python-base.Dockerfile -t briacleguillou/python-base:latest .
+            displayName: Build python-base
+
+          - script: docker build -f .docker/trainer.Dockerfile -t briacleguillou/trainer:latest .
+            displayName: Build trainer
+
+          - script: docker build -f .docker/worker.Dockerfile -t briacleguillou/worker:latest .
+            displayName: Build worker
+
+          - script: docker build -f .docker/orchestrator.Dockerfile -t briacleguillou/orchestrator:latest .
+            displayName: Build orchestrator
+
+          - script: |
+              docker push briacleguillou/python-base:latest
+              docker push briacleguillou/trainer:latest
+              docker push briacleguillou/worker:latest
+              docker push briacleguillou/orchestrator:latest
+            displayName: Push images
