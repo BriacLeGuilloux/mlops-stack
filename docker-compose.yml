@@ -37,7 +37,9 @@ services:
     profiles: ["dev"]
 
   dotnet-dev:
-    image: mcr.microsoft.com/dotnet/sdk:8.0
+    build:
+      context: .
+      dockerfile: .docker/dotnet-dev.Dockerfile
     volumes:
       - .:/workspace
     working_dir: /workspace/orchestrator

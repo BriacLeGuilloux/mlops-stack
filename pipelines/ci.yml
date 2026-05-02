@@ -43,6 +43,9 @@ stages:
       - job: dotnet_tests
         displayName: .NET tests
         steps:
+          - script: docker compose --profile dev build dotnet-dev
+            displayName: Build dotnet-dev
+
           - script: docker compose --profile dev run --rm dotnet-dev
             displayName: dotnet test
 
