@@ -16,7 +16,9 @@ WINDOW_OUT = 14
 def _container_client() -> ContainerClient:
     conn_str = os.environ["AZURE_STORAGE_CONN_STR"]
     container = os.environ["BLOB_CONTAINER"]
-    return BlobServiceClient.from_connection_string(conn_str).get_container_client(container)
+    return BlobServiceClient.from_connection_string(conn_str).get_container_client(
+        container
+    )
 
 
 def download_raw_data(client: ContainerClient) -> pd.DataFrame:
@@ -39,7 +41,11 @@ def _next_version(client: ContainerClient) -> int:
     blobs = [b.name for b in client.list_blobs(name_starts_with="models/xgb_v")]
     if not blobs:
         return 1
-    versions = [int(m.group(1)) for b in blobs if (m := re.search(r"xgb_v(\d+)\.pkl$", b))]
+    versions = [
+        int(m.group(1))
+        for b in blobs
+        if (m := re.search(r"xgb_v(\d+)\.pkl$", b))
+    ]
     return max(versions) + 1 if versions else 1
 
 
@@ -60,7 +66,12 @@ def train(client: ContainerClient) -> None:
     print("Training complete")
 
     version = _next_version(client)
-    artifact = {"model": model, "scaler_min": scaler_min, "scaler_max": scaler_max, "version": version}
+    artifact = {
+        "model": model,
+        "scaler_min": scaler_min,
+        "scaler_max": scaler_max,
+        "version": version,
+    }
 
     buf = io.BytesIO()
     joblib.dump(artifact, buf)

@@ -28,7 +28,9 @@ _scaler_max: float = 1.0
 def _container_client() -> ContainerClient:
     conn_str = os.environ["AZURE_STORAGE_CONN_STR"]
     container = os.environ["BLOB_CONTAINER"]
-    return BlobServiceClient.from_connection_string(conn_str).get_container_client(container)
+    return BlobServiceClient.from_connection_string(conn_str).get_container_client(
+        container
+    )
 
 
 def _latest_model_blob(client: ContainerClient) -> str:
