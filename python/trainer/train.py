@@ -2,20 +2,15 @@ import io
 import os
 import re
 
+import joblib
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
 from azure.storage.blob import BlobServiceClient, ContainerClient
-from torch.utils.data import DataLoader, TensorDataset
-
-from model import LSTMModel
+from sklearn.multioutput import MultiOutputRegressor
+from xgboost import XGBRegressor
 
 WINDOW_IN = 30
 WINDOW_OUT = 14
-EPOCHS = 50
-BATCH_SIZE = 16
-LR = 1e-3
 
 
 def _container_client() -> ContainerClient:
@@ -41,10 +36,10 @@ def create_windows(
 
 
 def _next_version(client: ContainerClient) -> int:
-    blobs = [b.name for b in client.list_blobs(name_starts_with="models/lstm_v")]
+    blobs = [b.name for b in client.list_blobs(name_starts_with="models/xgb_v")]
     if not blobs:
         return 1
-    versions = [int(m.group(1)) for b in blobs if (m := re.search(r"lstm_v(\d+)\.pt$", b))]
+    versions = [int(m.group(1)) for b in blobs if (m := re.search(r"xgb_v(\d+)\.pkl$", b))]
     return max(versions) + 1 if versions else 1
 
 
@@ -57,41 +52,21 @@ def train(client: ContainerClient) -> None:
     normalized = (raw - scaler_min) / (scaler_max - scaler_min)
 
     X, y = create_windows(normalized, WINDOW_IN, WINDOW_OUT)
-    X_t = torch.tensor(X).unsqueeze(-1)
-    y_t = torch.tensor(y)
 
-    loader = DataLoader(TensorDataset(X_t, y_t), batch_size=BATCH_SIZE, shuffle=True)
-
-    model = LSTMModel()
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
-
-    model.train()
-    for epoch in range(EPOCHS):
-        total_loss = 0.0
-        for xb, yb in loader:
-            optimizer.zero_grad()
-            pred = model(xb)
-            loss = criterion(pred, yb)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-        print(f"Epoch {epoch + 1}/{EPOCHS} — loss: {total_loss / len(loader):.6f}")
+    model = MultiOutputRegressor(
+        XGBRegressor(n_estimators=200, max_depth=4, learning_rate=0.1, n_jobs=-1)
+    )
+    model.fit(X, y)
+    print("Training complete")
 
     version = _next_version(client)
+    artifact = {"model": model, "scaler_min": scaler_min, "scaler_max": scaler_max, "version": version}
+
     buf = io.BytesIO()
-    torch.save(
-        {
-            "model_state_dict": model.state_dict(),
-            "scaler_min": scaler_min,
-            "scaler_max": scaler_max,
-            "version": version,
-        },
-        buf,
-    )
+    joblib.dump(artifact, buf)
     buf.seek(0)
-    client.upload_blob(f"models/lstm_v{version}.pt", buf, overwrite=True)
-    print(f"Model uploaded as models/lstm_v{version}.pt")
+    client.upload_blob(f"models/xgb_v{version}.pkl", buf, overwrite=True)
+    print(f"Model uploaded as models/xgb_v{version}.pkl")
 
 
 if __name__ == "__main__":

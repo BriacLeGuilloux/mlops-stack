@@ -1,17 +1,13 @@
 import io
 import os
-import sys
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+import joblib
 import numpy as np
-import torch
 from azure.storage.blob import BlobServiceClient, ContainerClient
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-
-sys.path.insert(0, "/app/trainer")
-from model import LSTMModel
 
 WINDOW_IN = 30
 
@@ -24,7 +20,7 @@ class PredictResponse(BaseModel):
     forecast: list[float]
 
 
-_model: LSTMModel | None = None
+_model = None
 _scaler_min: float = 0.0
 _scaler_max: float = 1.0
 
@@ -37,8 +33,8 @@ def _container_client() -> ContainerClient:
 
 def _latest_model_blob(client: ContainerClient) -> str:
     blobs = sorted(
-        [b.name for b in client.list_blobs(name_starts_with="models/lstm_v")],
-        key=lambda n: int(n.split("_v")[1].replace(".pt", "")),
+        [b.name for b in client.list_blobs(name_starts_with="models/xgb_v")],
+        key=lambda n: int(n.split("_v")[1].replace(".pkl", "")),
     )
     if not blobs:
         raise RuntimeError("No model found in blob storage")
@@ -50,13 +46,10 @@ def load_model() -> None:
     client = _container_client()
     blob_name = _latest_model_blob(client)
     data = client.get_blob_client(blob_name).download_blob().readall()
-    checkpoint = torch.load(io.BytesIO(data), map_location="cpu", weights_only=True)
-    model = LSTMModel()
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model.eval()
-    _model = model
-    _scaler_min = checkpoint["scaler_min"]
-    _scaler_max = checkpoint["scaler_max"]
+    artifact = joblib.load(io.BytesIO(data))
+    _model = artifact["model"]
+    _scaler_min = artifact["scaler_min"]
+    _scaler_max = artifact["scaler_max"]
 
 
 @asynccontextmanager
@@ -80,11 +73,7 @@ def predict(request: PredictRequest) -> PredictResponse:
 
     raw = np.array(request.features, dtype=np.float32)
     normalized = (raw - _scaler_min) / (_scaler_max - _scaler_min)
-    x = torch.tensor(normalized).unsqueeze(0).unsqueeze(-1)
-
-    with torch.no_grad():
-        pred = _model(x).squeeze(0).numpy()
-
+    pred = _model.predict(normalized.reshape(1, -1))[0]
     forecast = (pred * (_scaler_max - _scaler_min) + _scaler_min).tolist()
     return PredictResponse(forecast=forecast)
 
