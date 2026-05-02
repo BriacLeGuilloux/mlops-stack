@@ -40,7 +40,7 @@ services:
     image: mcr.microsoft.com/dotnet/sdk:8.0
     volumes:
       - .:/workspace
-    working_dir: /workspace
+    working_dir: /workspace/orchestrator
     entrypoint: ["dotnet"]
     command: ["test", "orchestrator.sln"]
     profiles: ["dev"]
