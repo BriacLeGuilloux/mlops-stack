@@ -42,9 +42,7 @@ def _next_version(client: ContainerClient) -> int:
     if not blobs:
         return 1
     versions = [
-        int(m.group(1))
-        for b in blobs
-        if (m := re.search(r"xgb_v(\d+)\.pkl$", b))
+        int(m.group(1)) for b in blobs if (m := re.search(r"xgb_v(\d+)\.pkl$", b))
     ]
     return max(versions) + 1 if versions else 1
 
