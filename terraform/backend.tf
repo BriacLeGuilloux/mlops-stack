@@ -1,7 +1,7 @@
 terraform {
   backend "azurerm" {
     resource_group_name  = "mlops-tfstate"
-    storage_account_name = "mlopstfstate"
+    storage_account_name = "mlopsbriacstate"
     container_name       = "tfstate"
     key                  = "mlops.tfstate"
   }
