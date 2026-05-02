@@ -12,14 +12,16 @@ stages:
     jobs:
       - job: lint
         steps:
+          - script: docker compose --profile dev build python-dev
+            displayName: Build python-dev
+
           - script: |
-              docker compose --profile dev build python-dev
-              docker compose --profile dev run --rm python-dev \
-                -m ruff check python/
+              docker compose --profile dev run --rm --entrypoint ruff python-dev \
+                check python/
             displayName: ruff
 
           - script: |
-              docker compose --profile dev run --rm python-dev \
+              docker compose --profile dev run --rm --entrypoint python python-dev \
                 -m black --check python/
             displayName: black
 
