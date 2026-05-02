@@ -1,0 +1,46 @@
+services:
+  trainer:
+    image: briacleguillou/trainer:latest
+    environment:
+      AZURE_STORAGE_CONN_STR: ${AZURE_STORAGE_CONN_STR}
+      BLOB_CONTAINER: ${BLOB_CONTAINER}
+
+  worker:
+    image: briacleguillou/worker:latest
+    ports:
+      - "8000:8000"
+    environment:
+      AZURE_STORAGE_CONN_STR: ${AZURE_STORAGE_CONN_STR}
+      BLOB_CONTAINER: ${BLOB_CONTAINER}
+
+  orchestrator:
+    image: briacleguillou/orchestrator:latest
+    ports:
+      - "8080:8080"
+    environment:
+      WORKER_URL: ${WORKER_URL:-http://worker:8000}
+      OPENMETEO_BASE_URL: ${OPENMETEO_BASE_URL:-https://api.open-meteo.com}
+      AZURE_STORAGE_CONN_STR: ${AZURE_STORAGE_CONN_STR}
+      BLOB_CONTAINER: ${BLOB_CONTAINER}
+
+  python-dev:
+    build:
+      context: .
+      dockerfile: .docker/python-dev.Dockerfile
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    entrypoint: ["pytest"]
+    environment:
+      AZURE_STORAGE_CONN_STR: ${AZURE_STORAGE_CONN_STR:-dummy}
+      BLOB_CONTAINER: ${BLOB_CONTAINER:-mlops}
+    profiles: ["dev"]
+
+  dotnet-dev:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    entrypoint: ["dotnet"]
+    command: ["test", "orchestrator.sln"]
+    profiles: ["dev"]
