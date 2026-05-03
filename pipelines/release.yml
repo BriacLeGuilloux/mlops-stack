@@ -66,28 +66,46 @@ stages:
               AZURE_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
               AZURE_TENANT_ID: $(ARM_TENANT_ID)
 
+          # Use sh -c inside the container to avoid heredoc + -i issues.
+          # Secrets are passed as env vars; kubectl dry-run | apply is idempotent.
           - script: |
-              docker run --rm -i \
-                --network host \
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -e CLIENT_ID=$(ARM_CLIENT_ID) \
+                -e CLIENT_SECRET=$(ARM_CLIENT_SECRET) \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest sh -c '
+                  kubectl create namespace mlops --dry-run=client -o yaml | kubectl apply -f - &&
+                  kubectl create secret generic secrets-store-creds \
+                    --namespace mlops \
+                    --from-literal=clientid="$CLIENT_ID" \
+                    --from-literal=clientsecret="$CLIENT_SECRET" \
+                    --dry-run=client -o yaml | kubectl apply -f -
+                '
+            displayName: bootstrap mlops namespace and SP secret
+
+          - script: |
+              echo "=== verify secret exists ==="
+              docker run --rm --network host \
                 -e KUBECONFIG=/kubeconfig \
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \
-                bitnami/kubectl:latest apply -f - <<EOF
-              apiVersion: v1
-              kind: Namespace
-              metadata:
-                name: mlops
-              ---
-              apiVersion: v1
-              kind: Secret
-              metadata:
-                name: secrets-store-creds
-                namespace: mlops
-              type: Opaque
-              stringData:
-                clientid: "$(ARM_CLIENT_ID)"
-                clientsecret: "$(ARM_CLIENT_SECRET)"
-              EOF
-            displayName: bootstrap mlops namespace and SP secret
+                bitnami/kubectl:latest get secret secrets-store-creds -n mlops -o jsonpath='{.metadata.name}'
+              echo ""
+
+              echo "=== verify secret keys (base64 length as proof of presence) ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest get secret secrets-store-creds -n mlops \
+                  -o jsonpath='clientid key length: {.data.clientid} | clientsecret key length: {.data.clientsecret}'
+              echo ""
+
+              echo "=== current SecretProviderClass ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest describe secretproviderclass mlops-secrets-provider -n mlops
+            displayName: verify bootstrap
 
           - script: |
               docker run --rm \
@@ -103,17 +121,24 @@ stages:
             displayName: helm upgrade
 
           - script: |
+              echo "=== rollout restart ==="
               docker run --rm --network host \
                 -e KUBECONFIG=/kubeconfig \
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \
                 bitnami/kubectl:latest rollout restart \
                   deployment/orchestrator deployment/worker -n mlops
 
+              echo "=== wait for orchestrator ==="
               docker run --rm --network host \
                 -e KUBECONFIG=/kubeconfig \
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \
-                bitnami/kubectl:latest rollout status \
-                  deployment/orchestrator deployment/worker -n mlops --timeout=10m
+                bitnami/kubectl:latest rollout status deployment/orchestrator -n mlops --timeout=10m
+
+              echo "=== wait for worker ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest rollout status deployment/worker -n mlops --timeout=10m
             displayName: rollout restart and wait
 
           - script: |
@@ -123,31 +148,56 @@ stages:
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \
                 bitnami/kubectl:latest get pods -n mlops -o wide
 
-              echo "=== events ==="
+              echo "=== events (mlops) ==="
               docker run --rm --network host \
                 -e KUBECONFIG=/kubeconfig \
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \
                 bitnami/kubectl:latest get events -n mlops --sort-by='.lastTimestamp'
 
-              echo "=== orchestrator logs ==="
+              echo "=== SecretProviderClass applied ==="
               docker run --rm --network host \
                 -e KUBECONFIG=/kubeconfig \
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \
-                bitnami/kubectl:latest logs -n mlops -l app=orchestrator --tail=100 --previous || true
+                bitnami/kubectl:latest get secretproviderclass -n mlops -o yaml
 
-              echo "=== worker logs ==="
+              echo "=== CSI driver pods in kube-system ==="
               docker run --rm --network host \
                 -e KUBECONFIG=/kubeconfig \
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \
-                bitnami/kubectl:latest logs -n mlops -l app=worker --tail=100 --previous || true
+                bitnami/kubectl:latest get pods -n kube-system | grep -E 'secret|csi' || echo "none found"
 
-              echo "=== describe orchestrator ==="
+              echo "=== CSI Azure provider logs ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest logs -n kube-system \
+                  -l app=csi-secrets-store-provider-azure --tail=80 2>/dev/null || \
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest logs -n kube-system \
+                  -l app=secrets-store-csi-driver --tail=80 2>/dev/null || \
+              echo "CSI provider pod not found with known labels, check kube-system pods above"
+
+              echo "=== orchestrator logs (current) ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest logs -n mlops -l app=orchestrator --tail=100 || true
+
+              echo "=== worker logs (current) ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest logs -n mlops -l app=worker --tail=100 || true
+
+              echo "=== describe orchestrator pod ==="
               docker run --rm --network host \
                 -e KUBECONFIG=/kubeconfig \
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \
                 bitnami/kubectl:latest describe pods -n mlops -l app=orchestrator
 
-              echo "=== describe worker ==="
+              echo "=== describe worker pod ==="
               docker run --rm --network host \
                 -e KUBECONFIG=/kubeconfig \
                 -v $(pwd)/kubeconfig:/kubeconfig:ro \

@@ -32,6 +32,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "training" {
   name                  = "training"
   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
   vm_size               = "Standard_D4s_v3"
+  vnet_subnet_id        = var.subnet_id
   node_count            = 0
   min_count             = 0
   max_count             = 1
