@@ -53,7 +53,12 @@ stages:
     jobs:
       - job: helm
         steps:
-          - script: az aks get-credentials --resource-group mlops-${{ parameters.environment }} --name mlops-aks-${{ parameters.environment }} --overwrite-existing
+          - script: |
+              az aks get-credentials \
+                --resource-group mlops-${{ parameters.environment }} \
+                --name mlops-aks-${{ parameters.environment }} \
+                --overwrite-existing \
+                --file $(pwd)/kubeconfig
             displayName: AKS credentials
             env:
               AZURE_CLIENT_ID: $(ARM_CLIENT_ID)
@@ -61,12 +66,17 @@ stages:
               AZURE_TENANT_ID: $(ARM_TENANT_ID)
 
           - script: |
-              helm upgrade --install mlops-stack helm/mlops-stack \
-                --namespace mlops \
-                --create-namespace \
-                --values helm/mlops-stack/values.yaml \
-                --values helm/mlops-stack/values-${{ parameters.environment }}.yaml \
-                --wait --timeout 5m
+              docker run --rm \
+                --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                -v $(pwd)/helm:/helm:ro \
+                alpine/helm:latest upgrade --install mlops-stack /helm/mlops-stack \
+                  --namespace mlops \
+                  --create-namespace \
+                  --values /helm/mlops-stack/values.yaml \
+                  --values /helm/mlops-stack/values-${{ parameters.environment }}.yaml \
+                  --wait --timeout 5m
             displayName: helm upgrade
 
   - stage: Smoke
@@ -76,8 +86,25 @@ stages:
       - job: smoke
         steps:
           - script: |
-              WORKER_URL=$(kubectl get svc orchestrator -n mlops -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://$WORKER_URL:8080/api/demo/start)
+              az aks get-credentials \
+                --resource-group mlops-${{ parameters.environment }} \
+                --name mlops-aks-${{ parameters.environment }} \
+                --overwrite-existing \
+                --file $(pwd)/kubeconfig
+            displayName: AKS credentials
+            env:
+              AZURE_CLIENT_ID: $(ARM_CLIENT_ID)
+              AZURE_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              AZURE_TENANT_ID: $(ARM_TENANT_ID)
+
+          - script: |
+              WORKER_URL=$(docker run --rm \
+                --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest get svc orchestrator -n mlops \
+                  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "http://$WORKER_URL:8080/api/demo/start")
               if [ "$STATUS" != "202" ]; then
                 echo "Smoke test failed: expected 202, got $STATUS"
                 exit 1
