@@ -23,6 +23,7 @@ stages:
         steps:
           - script: |
               docker run --rm \
+                --network host \
                 --user 1000:1000 \
                 -e ARM_CLIENT_ID=$(ARM_CLIENT_ID) \
                 -e ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET) \
@@ -35,6 +36,7 @@ stages:
 
           - script: |
               docker run --rm \
+                --network host \
                 --user 1000:1000 \
                 -e ARM_CLIENT_ID=$(ARM_CLIENT_ID) \
                 -e ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET) \
