@@ -99,9 +99,22 @@ stages:
                   --namespace mlops \
                   --create-namespace \
                   --values /helm/mlops-stack/values.yaml \
-                  --values /helm/mlops-stack/values-${{ parameters.environment }}.yaml \
-                  --wait --timeout 5m
+                  --values /helm/mlops-stack/values-${{ parameters.environment }}.yaml
             displayName: helm upgrade
+
+          - script: |
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest rollout restart \
+                  deployment/orchestrator deployment/worker -n mlops
+
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest rollout status \
+                  deployment/orchestrator deployment/worker -n mlops --timeout=10m
+            displayName: rollout restart and wait
 
           - script: |
               echo "=== pods ==="
