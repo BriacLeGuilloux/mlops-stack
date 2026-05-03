@@ -76,6 +76,7 @@ stages:
                 --name mlops-aks-${{ parameters.environment }} \
                 --overwrite-existing \
                 --file $(pwd)/kubeconfig
+              chmod 644 $(pwd)/kubeconfig
             displayName: AKS credentials
             env:
               AZURE_CLIENT_ID: $(ARM_CLIENT_ID)
@@ -148,6 +149,7 @@ stages:
                 --name mlops-aks-${{ parameters.environment }} \
                 --overwrite-existing \
                 --file $(pwd)/kubeconfig
+              chmod 644 $(pwd)/kubeconfig
             displayName: AKS credentials
             env:
               AZURE_CLIENT_ID: $(ARM_CLIENT_ID)
