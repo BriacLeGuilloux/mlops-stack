@@ -6,6 +6,9 @@ trigger:
 pool:
   name: local
 
+variables:
+  - group: mlops-secrets
+
 stages:
   - stage: Lint
     displayName: Lint Python
