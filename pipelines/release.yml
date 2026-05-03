@@ -47,9 +47,26 @@ stages:
                 hashicorp/terraform:latest apply -auto-approve -var-file=environments/${{ parameters.environment }}.tfvars
             displayName: terraform apply
 
+          - script: |
+              CSI_CLIENT_ID=$(docker run --rm \
+                --network host \
+                --user 1000:1000 \
+                -e ARM_CLIENT_ID=$(ARM_CLIENT_ID) \
+                -e ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET) \
+                -e ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID) \
+                -e ARM_TENANT_ID=$(ARM_TENANT_ID) \
+                -v $(pwd)/terraform:/workspace \
+                -w /workspace \
+                hashicorp/terraform:latest output -raw csi_client_id)
+              echo "##vso[task.setvariable variable=CSI_CLIENT_ID;isOutput=true]$CSI_CLIENT_ID"
+            name: tfOutput
+            displayName: terraform output csi_client_id
+
   - stage: Deploy
     displayName: Helm deploy
     dependsOn: Infra
+    variables:
+      CSI_CLIENT_ID: $[ stageDependencies.Infra.terraform.outputs['tfOutput.CSI_CLIENT_ID'] ]
     jobs:
       - job: helm
         steps:
@@ -76,6 +93,7 @@ stages:
                   --create-namespace \
                   --values /helm/mlops-stack/values.yaml \
                   --values /helm/mlops-stack/values-${{ parameters.environment }}.yaml \
+                  --set secretProviderClass.clientId=$(CSI_CLIENT_ID) \
                   --wait --timeout 5m
             displayName: helm upgrade
 

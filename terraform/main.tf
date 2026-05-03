@@ -32,5 +32,6 @@ module "keyvault" {
   keyvault_name             = var.keyvault_name
   tenant_id                 = var.tenant_id
   aks_identity_id           = module.aks.kubelet_identity_id
+  csi_identity_id           = module.aks.csi_object_id
   storage_connection_string = module.storage.connection_string
 }

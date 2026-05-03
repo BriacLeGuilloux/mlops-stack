@@ -18,6 +18,12 @@ resource "azurerm_key_vault" "kv" {
     object_id          = var.aks_identity_id
     secret_permissions = ["Get", "List"]
   }
+
+  access_policy {
+    tenant_id          = var.tenant_id
+    object_id          = var.csi_identity_id
+    secret_permissions = ["Get", "List"]
+  }
 }
 
 resource "azurerm_key_vault_secret" "storage_conn_str" {
