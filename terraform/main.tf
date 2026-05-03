@@ -21,14 +21,16 @@ module "storage" {
   location             = var.location
   environment          = var.environment
   storage_account_name = var.storage_account_name
+  depends_on           = [module.networking]
 }
 
 module "keyvault" {
-  source              = "./modules/keyvault"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  environment         = var.environment
-  keyvault_name       = var.keyvault_name
-  tenant_id           = var.tenant_id
-  aks_identity_id     = module.aks.kubelet_identity_id
+  source                    = "./modules/keyvault"
+  resource_group_name       = var.resource_group_name
+  location                  = var.location
+  environment               = var.environment
+  keyvault_name             = var.keyvault_name
+  tenant_id                 = var.tenant_id
+  aks_identity_id           = module.aks.kubelet_identity_id
+  storage_connection_string = module.storage.connection_string
 }
