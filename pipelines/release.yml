@@ -44,7 +44,23 @@ stages:
                 -e ARM_TENANT_ID=$(ARM_TENANT_ID) \
                 -v $(pwd)/terraform:/workspace \
                 -w /workspace \
-                hashicorp/terraform:latest apply -auto-approve -var-file=environments/${{ parameters.environment }}.tfvars
+                hashicorp/terraform:latest plan \
+                  -var-file=environments/${{ parameters.environment }}.tfvars \
+                  -out=tfplan
+            displayName: terraform plan
+
+          - script: |
+              docker run --rm \
+                --network host \
+                --user 1000:1000 \
+                -e ARM_CLIENT_ID=$(ARM_CLIENT_ID) \
+                -e ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET) \
+                -e ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID) \
+                -e ARM_TENANT_ID=$(ARM_TENANT_ID) \
+                -e TF_LOG=INFO \
+                -v $(pwd)/terraform:/workspace \
+                -w /workspace \
+                hashicorp/terraform:latest apply -auto-approve tfplan
             displayName: terraform apply
 
   - stage: Deploy
