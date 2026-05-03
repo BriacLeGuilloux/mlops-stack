@@ -97,6 +97,45 @@ stages:
                   --wait --timeout 5m
             displayName: helm upgrade
 
+          - script: |
+              echo "=== pods ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest get pods -n mlops -o wide
+
+              echo "=== events ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest get events -n mlops --sort-by='.lastTimestamp'
+
+              echo "=== orchestrator logs ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest logs -n mlops -l app=orchestrator --tail=100 --previous || true
+
+              echo "=== worker logs ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest logs -n mlops -l app=worker --tail=100 --previous || true
+
+              echo "=== describe orchestrator ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest describe pods -n mlops -l app=orchestrator
+
+              echo "=== describe worker ==="
+              docker run --rm --network host \
+                -e KUBECONFIG=/kubeconfig \
+                -v $(pwd)/kubeconfig:/kubeconfig:ro \
+                bitnami/kubectl:latest describe pods -n mlops -l app=worker
+            displayName: kubectl diagnostic
+            condition: always()
+
   - stage: Smoke
     displayName: Smoke test
     dependsOn: Deploy
