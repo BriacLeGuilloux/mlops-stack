@@ -12,6 +12,9 @@ parameters:
 pool:
   name: local
 
+variables:
+  - group: mlops-secrets
+
 stages:
   - stage: Infra
     displayName: Terraform
