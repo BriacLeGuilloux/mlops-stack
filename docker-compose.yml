@@ -40,8 +40,6 @@ services:
     build:
       context: .
       dockerfile: .docker/dotnet-dev.Dockerfile
-    volumes:
-      - .:/workspace
     working_dir: /workspace/orchestrator
     entrypoint: ["dotnet"]
     command: ["test", "orchestrator.sln"]

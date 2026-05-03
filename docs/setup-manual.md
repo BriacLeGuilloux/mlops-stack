@@ -40,8 +40,8 @@ Pipelines → **Library → New variable group** `mlops-secrets`, marquer comme 
 
 ### Azure DevOps — Pipelines
 
-- [ ] Créer le pipeline CI : Pipelines → New pipeline → Azure Repos → `pipelines/ci.yml`
-- [ ] Créer le pipeline Release : Pipelines → New pipeline → Azure Repos → `pipelines/release.yml`
+- [x] Créer le pipeline CI : Pipelines → New pipeline → GitHub → `pipelines/ci.yml`
+- [ ] Créer le pipeline Release : Pipelines → New pipeline → GitHub → `pipelines/release.yml`
 - [ ] Lier le variable group `mlops-secrets` aux deux pipelines
 
 ### Azure — Service Principal
@@ -55,14 +55,16 @@ Copier `appId`, `password`, `tenant` → variables secrètes ci-dessus.
 
 ### Terraform — Configuration
 
-- [ ] Remplir `tenant_id` dans `terraform/environments/dev.tfvars` et `prod.tfvars`
+- [x] Remplir `tenant_id` dans `terraform/environments/dev.tfvars` et `prod.tfvars`
 - [ ] Créer manuellement le storage account pour le backend Terraform (bootstrap unique) :
 
   ```bash
   az group create -n mlops-tfstate -l westeurope
-  az storage account create -n mlopstfstate -g mlops-tfstate --sku Standard_LRS
-  az storage container create -n tfstate --account-name mlopstfstate
+  az storage account create -n mlopsbriacstate -g mlops-tfstate --sku Standard_LRS
+  az storage container create -n tfstate --account-name mlopsbriacstate
   ```
+
+  > Le nom `mlopstfstate` était déjà pris sur Azure. Le backend est configuré avec `mlopsbriacstate`.
 
 ### Docker Hub
 
