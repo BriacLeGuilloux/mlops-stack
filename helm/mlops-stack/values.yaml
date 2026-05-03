@@ -31,4 +31,3 @@ blobContainer: mlops
 secretProviderClass:
   tenantId: ""
   keyvaultName: ""
-  clientId: ""
