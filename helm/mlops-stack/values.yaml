@@ -22,6 +22,9 @@ worker:
       cpu: 1000m
       memory: 1Gi
 
+trainer:
+  image: briacleguillou/trainer:latest
+
 openMeteoBaseUrl: https://api.open-meteo.com
 blobContainer: mlops
 
