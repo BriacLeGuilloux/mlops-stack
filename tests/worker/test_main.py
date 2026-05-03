@@ -37,13 +37,11 @@ def client_with_model():
     container_client.list_blobs.return_value = [MagicMock(name="models/xgb_v1.pkl")]
     container_client.get_blob_client.return_value = blob_client
 
-    with patch.object(worker_main, "_container_client", return_value=container_client):
-        worker_main.load_model()
-
     from fastapi.testclient import TestClient
 
-    with TestClient(worker_main.app, raise_server_exceptions=True) as c:
-        yield c, worker_main
+    with patch.object(worker_main, "_container_client", return_value=container_client):
+        with TestClient(worker_main.app, raise_server_exceptions=True) as c:
+            yield c, worker_main
 
 
 class TestPredict:
