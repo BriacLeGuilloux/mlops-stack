@@ -13,6 +13,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   oidc_issuer_enabled = true
 
+  key_vault_secrets_provider {
+    secret_rotation_enabled = false
+  }
+
   identity {
     type = "SystemAssigned"
   }
