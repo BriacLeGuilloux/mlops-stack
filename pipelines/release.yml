@@ -72,7 +72,7 @@ stages:
           - script: |
               az aks get-credentials \
                 --resource-group mlops-${{ parameters.environment }} \
-                --name mlops-aks-${{ parameters.environment }} \
+                --name mlops-${{ parameters.environment }}-aks \
                 --overwrite-existing \
                 --file $(pwd)/kubeconfig
               chmod 644 $(pwd)/kubeconfig
@@ -230,7 +230,7 @@ stages:
           - script: |
               az aks get-credentials \
                 --resource-group mlops-${{ parameters.environment }} \
-                --name mlops-aks-${{ parameters.environment }} \
+                --name mlops-${{ parameters.environment }}-aks \
                 --overwrite-existing \
                 --file $(pwd)/kubeconfig
               chmod 644 $(pwd)/kubeconfig
